@@ -86,16 +86,18 @@ with open("faceVerFileNames1.pkl","rb") as f:
 #group fileNames by person's name
 ## collect a full fileNames
 fileNames1=fileNames+fNTemp; fileNames1.sort()
+nameFileNames=[re.split("\\\\([A-Za-z_\-]*)_.*$",fN) for fN in fileNames1]
+uNameFileNames=list(set(nameFileNames))
 ## index fileNames1 whose images are of one person
 try:
     with open("faceVerFileNames2.pkl","wb") as f:#NOTE pitstop2
         pickle.dump(
-            list(set([re.split("\\\\([A-Za-z_\-]*)_.*$",fN) for fN in fileNames1])),f
+            (nameFileNames,uNameFileNames),f
         )
 except Exception:pass
 
 with open("faceVerFileNames2.pkl","rb") as f:
-        uNameFileNames=pickle.load(f)
+        nameFileNames,uNameFileNames=pickle.load(f)
         
 try:
     with open("faceVerFileNames2.pkl","wb") as f:#NOTE pitstop3
