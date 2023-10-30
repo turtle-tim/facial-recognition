@@ -8,7 +8,7 @@ from tensorflow.keras.models import load_model
 os.environ["TF_CPP_MIN_LOG_LEVEL"]="2"
 
 with open("faceVerFileNames2.pkl","rb") as f:
-        uNameFileNames=pickle.load(f)
+        nameFileNames,uNameFileNames=pickle.load(f)
 
 with open("faceVerFileNames3.pkl","rb") as f:
     nameGroupFileNames=pickle.load(f)
