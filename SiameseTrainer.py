@@ -30,27 +30,18 @@ for j,(u,a,p,n) in enumerate(zip(uNameFileNames,anc,pos,neg)):
         positives=tf.data.Dataset.zip((anchor,positive,tf.data.Dataset.from_tensor_slices(tf.ones(_length))))
         negatives=tf.data.Dataset.zip((anchor,negative,tf.data.Dataset.from_tensor_slices(tf.zeros(_length))))
         dat=positives.concatenate(negatives)
-        dat=dat.map(preprocess_twin).cache.take(_length)
+        dat=dat.map(preprocess_twin).take(_length).cache()
         return dat.batch(16).prefetch(8)
-        
+     
     lengthA=len(a)
     idLz=list(range(lengthA))
     rand.shuffle(idLz)
     idZSubLz=[idLz[j::k] for j in range(k)]
+    
     for jFold,idSubLz in enumerate(idZSubLz):
         print("starting fold# {}/{}".format(jFold+1,k))
         idVal,idTrain=idSubLz,list(set(idLz).difference(idSubLz))
-        lengthV,lengthT=len(idVal),len(idTrain)
-        anchorTr,anchorVal=tf.data.Dataset.list_files([a[j] for j in idTrain]),tf.data.Dataset.list_files([a[j] for j in idVal])
-        positiveTr,positiveVal=tf.data.Dataset.list_files([p[j] for j in idTrain]),tf.data.Dataset.list_files([p[j] for j in idVal])
-        negativeTr,negativeVal=tf.data.Dataset.list_files([n[j] for j in idTrain]),tf.data.Dataset.list_files([n[j] for j in idVal])
-        positivesTr=tf.data.Dataset.zip((anchorTr,positiveTr,tf.data.Dataset.from_tensor_slices(tf.ones(lengthT))))
-        negativesTr=tf.data.Dataset.zip((anchorTr,negativeTr,tf.data.Dataset.from_tensor_slices(tf.zeros(lengthT))))
-        positivesVal=tf.data.Dataset.zip((anchorVal,positiveVal,tf.data.Dataset.from_tensor_slices(tf.ones(lengthV))))
-        negativesVal=tf.data.Dataset.zip((anchorVal,negativeVal,tf.data.Dataset.from_tensor_slices(tf.zeros(lengthV))))
-        dTr0,dVal0=positivesTr.concatenate(negativesTr),positivesVal.concatenate(negativesVal)
-        dTr0,dVal0=dTr0.map(preprocess_twin).cache().take(lengthT),dVal0.map(preprocess_twin).cache().take(lengthV)
-        dTr,dVal=dTr0.batch(16).prefetch(8),dVal0.batch(16).prefetch(8)
+        dTr,dVal=id2dat(idTrain),id2dat(idVal)
         for batchT,batchV in zip(dTr,dVal):
             Xt,yt=batchT[:2],batchT[2]
             Xv,yv=batchV[:2],batchV[2]
