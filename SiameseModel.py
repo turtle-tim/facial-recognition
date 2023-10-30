@@ -43,4 +43,4 @@ siamese_model=Model(inputs=[inp,val],outputs=[classifier],name="SiameseArchitect
 siamese_model.compile(
     tf.keras.optimizers.experimental.SGD(),
     tf.keras.losses.BinaryCrossentropy(),
-    metrics=["accuracy",tf.keras.metrics.AUC()])
+    metrics=["accuracy"])
