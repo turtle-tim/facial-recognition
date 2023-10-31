@@ -1,14 +1,15 @@
 from SiameseModel import *
 from SiameseTrainer import *
-from tensorflow.keras.models import load_model
+from tensorflow.keras.saving import *
 import pickle, os, re, uuid
 import random as rand
 import numpy as np
 
 with open("faceVerFileNames3.pkl","rb") as f:
     nameGroupFileNames=pickle.load(f)
-    
-siamese_model=load_model("siamese20230925v01.h5")
+
+currentDir=os.getcwd()   
+siamese_model=load_model(os.path.join(currentDir,"siamese20231031"))
 SIGNIFICANCE=.05
 CONFIDENCE=1-SIGNIFICANCE
 SAMPLE_SIZE=500
@@ -113,7 +114,11 @@ for j,(u,a,p,n) in enumerate(zip(uNameFileNames,anc,pos,neg)):
             history.append(
                 siamese_model.fit(
                     Xt,yt,epochs=50,validation_data=(Xv,yv),
-                    callbacks=[TensorBoard("/tmp/tb_logs"),EarlyStopping("val_loss",10)]
+                    callbacks=[
+                        TensorBoard("/tmp/tb_logs"),
+                        EarlyStopping("val_loss",10),
+                        ModelCheckpoint(currentDir,"val_loss",1,True)
+                    ]
                 )
             )
         siamese_model.save("siamese20230925v01.h5")
