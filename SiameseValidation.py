@@ -9,7 +9,7 @@ with open("faceVerFileNames3.pkl","rb") as f:
     nameGroupFileNames=pickle.load(f)
 
 currentDir=os.getcwd()   
-siamese_model=load_model(os.path.join(currentDir,"siamese20231031"))
+siamese_model=load_model(os.path.join(currentDir,"siamese20231031v1"))
 SIGNIFICANCE=.05
 CONFIDENCE=1-SIGNIFICANCE
 SAMPLE_SIZE=500
