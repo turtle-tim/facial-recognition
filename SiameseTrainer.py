@@ -54,4 +54,7 @@ for j,(u,a,p,n) in enumerate(zip(uNameFileNames,anc,pos,neg)):
         siamese_model.save("siamese20230925v01.h5")
         siamese_model=load_model("siamese20230925v01.h5")
 
-    
+try:
+    with open("faceVerhisTr.pkl","wb")as f:
+        pickle.dump(history,f)
+except Exception: pass
