@@ -4,8 +4,9 @@ logging.getLogger("tensorflow").setLevel(logging.WARNING)
 import tensorflow as tf
 import random as rand
 from tensorflow.keras.callbacks import *
-from tensorflow.keras.models import load_model
+from tensorflow.keras.saving import *
 os.environ["TF_CPP_MIN_LOG_LEVEL"]="2"
+currentDir=os.getcwd()
 
 with open("faceVerFileNames2.pkl","rb") as f:
         nameFileNames,uNameFileNames=pickle.load(f)
@@ -48,11 +49,13 @@ for j,(u,a,p,n) in enumerate(zip(uNameFileNames,anc,pos,neg)):
             history.append(
                 siamese_model.fit(
                     Xt,yt,epochs=50,validation_data=(Xv,yv),
-                    callbacks=[TensorBoard("/tmp/tb_logs"),EarlyStopping("val_loss",10)]
+                    callbacks=[
+                        TensorBoard("/tmp/tb_logs"),
+                        EarlyStopping("val_loss",10)
+                    ]
                 )
             )
-        siamese_model.save("siamese20230925v01.h5")
-        siamese_model=load_model("siamese20230925v01.h5")
+        save_model(siamese_model,os.path.join(currentDir,"siamese20231031"))
 
 try:
     with open("faceVerhisTr.pkl","wb")as f:
