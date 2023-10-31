@@ -86,7 +86,7 @@ with open("faceVerFileNames1.pkl","rb") as f:
 #group fileNames by person's name
 ## collect a full fileNames
 fileNames1=fileNames+fNTemp; fileNames1.sort()
-nameFileNames=[re.split("\\\\([A-Za-z_\-]*)_.*$",fN) for fN in fileNames1]
+nameFileNames=[re.split("\\\\([A-Za-z_\-]*)_.*$",fN)[1] for fN in fileNames1]
 uNameFileNames=list(set(nameFileNames))
 ## index fileNames1 whose images are of one person
 try:
