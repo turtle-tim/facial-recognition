@@ -31,7 +31,7 @@ for j,(u,a,p,n) in enumerate(zip(uNameFileNames,anc,pos,neg)):
         positives=tf.data.Dataset.zip((anchor,positive,tf.data.Dataset.from_tensor_slices(tf.ones(_length))))
         negatives=tf.data.Dataset.zip((anchor,negative,tf.data.Dataset.from_tensor_slices(tf.zeros(_length))))
         dat=positives.concatenate(negatives)
-        dat=dat.map(preprocess_twin).take(_length).cache()
+        dat=dat.map(preprocess_twin).cache()
         return dat.batch(16).prefetch(8)
      
     lengthA=len(a)
@@ -55,7 +55,8 @@ for j,(u,a,p,n) in enumerate(zip(uNameFileNames,anc,pos,neg)):
                     ]
                 )
             )
-        save_model(siamese_model,os.path.join(currentDir,"siamese20231031"))
+
+save_model(siamese_model,os.path.join(currentDir,"siamese20231031v1"))
 
 try:
     with open("faceVerhisTr.pkl","wb")as f:
