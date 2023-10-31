@@ -55,7 +55,7 @@ falsePos=np.mean(
 print("false positive rate when comparing a person's image not in lfw with ones in lfw: {}".format(falsePos))
 # experiment 3: in testerSiamese, group images by the names of their person- in the same way I generated nameGroupFileNames
 # repeat the training algorithm with the testing dataset
-nameFileNames=[re.split("\\\\([A-Za-z_\-]*)_.*$",fN) for fN in testers]
+nameFileNames=[re.split("\\\\([A-Za-z_\-]*)_.*$",fN)[1] for fN in testers]
 uNameFileNames=list(set(nameFileNames))
 nameGroupFileNames=[]
 for uName in uNameFileNames:
