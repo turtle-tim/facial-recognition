@@ -1,6 +1,4 @@
 import os, cv2, uuid, re, pickle, logging
-logging.getLogger("tensorflow").setLevel(logging.WARNING)
-import tensorflow as tf
 import random as rand
 from tensorflow.image import stateless_random_brightness,stateless_random_contrast,\
     stateless_random_flip_left_right,stateless_random_flip_up_down,\
@@ -11,14 +9,14 @@ currentDir=os.getcwd();dDir=os.path.join(currentDir,"dataSiamese")
 os.makedirs(dDir)
 '''
 NOTE 1: download lfw from https://vis-www.cs.umass.edu/lfw/
-NOTE 2: run: tar -xf lfw.tgz
+NOTE 2: in Command Prompt, run: tar -xf lfw.tgz
 NOTE 3: alternatively, you may load any portraiture of your liking into dataSiamese
 '''
 #move images- jpg low-res (<20kb), small (105*105)
 def loadImg(folderName):#fileName in currentDir
-    fileNames=[]
-    for directory in os.listdir(folderName):
-        subDir=os.path.join(folderName,directory)
+    fileNames,folderPath=[],os.path.join(currentDir,folderName)
+    for directory in os.listdir(folderPath):
+        subDir=os.path.join(folderPath,directory)
         for file in os.listdir(subDir):
             newDir=os.path.join(dDir,file)
             fileNames.append(newDir)
@@ -34,6 +32,7 @@ except Exception:pass
 
 with open(os.path.join(currentDir,"faceVerFileNames0.pkl"),"rb") as f:
     fileNames=pickle.load(f)
+
 #duplicate images with various image quality issues- contrast, saturation, brightness, orientation
 def imgAug(img):
     imgLz=[]
