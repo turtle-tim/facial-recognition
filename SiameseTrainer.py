@@ -31,7 +31,7 @@ for j,(u,a,p,n) in enumerate(zip(uNameFileNames,anc,pos,neg)):
         positives=tf.data.Dataset.zip((anchor,positive,tf.data.Dataset.from_tensor_slices(tf.ones(_length))))
         negatives=tf.data.Dataset.zip((anchor,negative,tf.data.Dataset.from_tensor_slices(tf.zeros(_length))))
         dat=positives.concatenate(negatives)
-        return dat.map(preprocess_twin).take(_length).batch(16).prefetch(8).cache()
+        return dat.map(preprocess_twin,num_parallel_calls=tf.data.experimental.AUTOTUNE).take(_length).batch(16).prefetch(8).cache()
      
     lengthA=len(a)
     idLz=list(range(lengthA))
