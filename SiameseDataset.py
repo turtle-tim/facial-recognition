@@ -99,14 +99,14 @@ with open("faceVerFileNames2.pkl","rb") as f:
         nameFileNames,uNameFileNames=pickle.load(f)
         
 try:
-    with open("faceVerFileNames2.pkl","wb") as f:#NOTE pitstop3
+    with open("faceVerFileNames3.pkl","wb") as f:#NOTE pitstop3
         pickle.dump(
             [[fileNames1[id] for id,name in enumerate(nameFileNames) if name==uName]
                     for uName in uNameFileNames],f
         )
 except Exception:pass
 
-with open("faceVerFileNames2.pkl","rb") as f:
+with open("faceVerFileNames3.pkl","rb") as f:
     nameGroupFileNames=pickle.load(f)
     
 #stratified bootstrap
