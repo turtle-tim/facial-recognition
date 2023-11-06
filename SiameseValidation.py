@@ -1,7 +1,7 @@
 from SiameseModel import *
 from SiameseTrainer import *
 from tensorflow.keras.saving import *
-import pickle, os, re, uuid
+import pickle, os, re, uuid, shutil, math
 import random as rand
 import numpy as np
 
@@ -13,6 +13,31 @@ siamese_model=load_model(os.path.join(currentDir,"siamese20231031v1"))
 SIGNIFICANCE=.05
 CONFIDENCE=1-SIGNIFICANCE
 SAMPLE_SIZE=500
+# folder wrangling
+#NOTE unzip your folder
+tDir=os.path.join(currentDir,"testerSiamese")
+os.makedirs(tDir)
+#clean up folder
+dDir=os.path.join(currentDir,
+"Downloads\\Selfies ID Images dataset 2023 TrainingData\\Selfies ID Images dataset")
+subDir,subsubDir=os.listdir(dDir),[]
+for sb in os.listdir(dDir):
+    sb1=os.path.join(dDir,sb)
+    for ssb in os.listdir(sb1):
+        subsubDir.append(os.path.join(sb1,ssb))
+
+nameGroupFileNames,uNameFileNames=[],[]
+for ssb in subsubDir:
+    gTemp=[]
+    uNameFileNames.append(re.split("[:\\\\A-Za-z0-9\-]*_(.*)",
+                                   os.path.split(ssb)[1])[1])
+    for fn in os.listdir(ssb):
+        newPath=os.path.join(tDir,
+                    "{}.{}".
+                    format(uuid.uuid4(),re.split("\.(\w+$)",fn)[1]))
+        shutil.copy2(os.path.join(ssb,fn),newPath)
+        gTemp.append(newPath)
+    nameGroupFileNames.append(gTemp)
 # experiment 1: randomly choose 500 images, one from each person
 # compare them with themselves respectively
 # test for false negative
@@ -22,7 +47,7 @@ falseNeg=np.mean(
         [siamese_model.predict(
             list(np.expand_dims([
                 preprocess(path),preprocess(path)
-                ],axis=1))
+                ],1))
             )for path in dummyLz]
     )<CONFIDENCE
 )
@@ -30,11 +55,8 @@ print("false negative rate when comparing a person's image with itself: {}".form
 # experiment 2: upload a image of a person novel to the lfw dataset;
 #NOTE load your testing images into a folder, named testerSiamese, in the working directory;
 # randomly choose 500 images
-currentDir=os.getcwd()
-testers=os.listdir(
-    os.path.join(currentDir,"testerSiamese")
-)
-lenT=len(testers)
+tFN=os.listdir(tDir)
+lenT,testers=len(tFN),[os.path.join(tDir,f)for f in tFN]
 if lenT>=SAMPLE_SIZE:
     testerLz=rand.sample(testers,SAMPLE_SIZE)
 else:
@@ -49,46 +71,49 @@ falsePos=np.mean(
         [siamese_model.predict(
             list(np.expand_dims([
                 preprocess(pathDum),preprocess(pathTester)
-                ],axis=1))
+                ],1))
             )for pathDum,pathTester in zip(dummyLz,testerLz)]
     )>SIGNIFICANCE
 )
 print("false positive rate when comparing a person's image not in lfw with ones in lfw: {}".format(falsePos))
-# experiment 3: in testerSiamese, group images by the names of their person- in the same way I generated nameGroupFileNames
-# repeat the training algorithm with the testing dataset
-nameFileNames=[re.split("\\\\([A-Za-z_\-]*)_.*$",fN)[1] for fN in testers]
-uNameFileNames=list(set(nameFileNames))
-nameGroupFileNames=[]
-for uName in uNameFileNames:
-    lzTemp=[]
-    for id,name in enumerate(nameFileNames):
-        if name==uName:
-            temp=testers[id]
-            t1,t2=os.path.split(temp)
-            newPath=t1+"{}.{}".format(uuid.uuid4(),re.split("(\.\w+$)",t2)[-2])
-            os.replace(
-                temp,os.path.join(newPath)
-            )
-            lzTemp.append(newPath)
-    nameGroupFileNames.append(lzTemp)
+# experiment 3: using the images in testerSiamese, record testing accuracy
+# for any instance of inaccuracy, repeat the training algorithm with the testing dataset
 anc,pos,neg=[],[],[]
-lengthN=list(range(len(nameGroupFileNames)))
+lenMinGp=min(len(gp)for gp in nameGroupFileNames)
+lengthN,numComb=list(range(lenMinGp)),math.comb(lenMinGp,lenMinGp//2)
 idJackKnife=[[id for id in lengthN if id!=j]
              for j,_ in enumerate(nameGroupFileNames)]
 for iD,uName in enumerate(nameGroupFileNames):
     lengthU=len(uName)//2
-    for _ in range(924):#NOTE len(uName)=12c6->6360c3180
+    for _ in range(numComb):#NOTE len(uName)=12c6->6360c3180
         stratSam=rand.sample(uName,lengthU)
         anc.append(stratSam)
         pos.append([un for un in uName if un not in stratSam])
         neg.append([rand.choice(nameGroupFileNames[idNeg]) 
                     for idNeg in rand.choices(idJackKnife[iD],k=lengthU)])
-lengthU=len(uNameFileNames)
+lengthU=len(nameGroupFileNames)
 k=6
 sensDis,precDis,sensValDis,precValDis,history=[],[],[],[],[]
 for j,(u,a,p,n) in enumerate(zip(uNameFileNames,anc,pos,neg)):
     print("starting {}/{};\nPerson's name: {};\nspan(anchor_person): {}".
             format(j+1,lengthU,u,len(nameGroupFileNames[j])))
+    predPos=[np.argmax(
+        siamese_model.predict(
+            list(np.expand_dims([
+                preprocess(aTemp),preprocess(pTemp)
+                ],1))
+            ),-1
+    )==0
+        for aTemp,pTemp in zip(a,p)]
+    predNeg=[np.argmax(
+        siamese_model.predict(
+            list(np.expand_dims([
+                preprocess(aTemp),preprocess(nTemp)
+                ],1))
+            ),-1
+    )==1
+        for aTemp,nTemp in zip(a,n)]
+    print("rate of <false negative,false positive>: <{},{}>".format(np.mean(predPos),np.mean(predNeg)))
     def id2dat(_id):
         _length=len(_id)
         anchor,positive,negative=tf.data.Dataset.list_files([a[j]for j in _id]),tf.data.Dataset.list_files([p[j]for j in _id]),\
@@ -99,7 +124,7 @@ for j,(u,a,p,n) in enumerate(zip(uNameFileNames,anc,pos,neg)):
         return dat.map(preprocess_twin).take(_length).batch(16).prefetch(8).cache()
      
     lengthA=len(a)
-    idLz=list(range(lengthA))
+    idLz=[_id for _id,t in enumerate(np.logical_or(predPos,predNeg)) if t]
     rand.shuffle(idLz)
     idZSubLz=[idLz[j::k] for j in range(k)]
     
