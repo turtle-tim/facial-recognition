@@ -38,6 +38,15 @@ for ssb in subsubDir:
         shutil.copy2(os.path.join(ssb,fn),newPath)
         gTemp.append(newPath)
     nameGroupFileNames.append(gTemp)
+
+try:
+    with open("faceVerTsFileNames.pkl","wb") as f:
+        pickle.dump((nameGroupFileNames,uNameFileNames),f)#NOTE pitstop0
+except Exception:pass
+
+with open(os.path.join(currentDir,"faceVerTsFileNames.pkl"),"rb") as f:
+    nameGroupFileNames,uNameFileNames=pickle.load(f)
+
 # experiment 1: randomly choose 500 images, one from each person
 # compare them with themselves respectively
 # test for false negative
