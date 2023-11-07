@@ -7,6 +7,7 @@ from tensorflow.keras.callbacks import *
 from tensorflow.keras.saving import *
 os.environ["TF_CPP_MIN_LOG_LEVEL"]="2"
 currentDir=os.getcwd()
+modDir=os.path.join(currentDir,"siamese20231031v1")
 
 with open("faceVerFileNames2.pkl","rb") as f:
         nameFileNames,uNameFileNames=pickle.load(f)
@@ -20,10 +21,17 @@ with open("faceVerAPN0.pkl","rb")as f:
 lengthU=len(uNameFileNames)
 k=6
 sensDis,precDis,sensValDis,precValDis,history=[],[],[],[],[]
-
-for j,(u,a,p,n) in enumerate(zip(uNameFileNames,anc,pos,neg)):
+#NOTE extra pitstops: every few hundred iterations, save and load model
+generator=((j,(u,a,p,n)) for j,(u,a,p,n) in enumerate(zip(uNameFileNames,anc,pos,neg)) if j>=500)#NOTE pitstop1 for when we pause and restart
+pitstops=list(filter(
+    lambda ps: ps%500==0,list(range(lengthU))
+))[1:]#exclude j==0
+for j,(u,a,p,n) in generator:
     print("starting {}/{};\nPerson's name: {};\nspan(anchor_person): {}".
             format(j+1,lengthU,u,len(nameGroupFileNames[j])))
+    if j in pitstops:
+        save_model(siamese_model,modDir)
+        siamese_model=load_model(modDir)
     def id2dat(_id):
         _length=len(_id)
         anchor,positive,negative=tf.data.Dataset.list_files([a[j]for j in _id]),tf.data.Dataset.list_files([p[j]for j in _id]),\
