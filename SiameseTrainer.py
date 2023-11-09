@@ -8,6 +8,7 @@ from tensorflow.keras.saving import *
 os.environ["TF_CPP_MIN_LOG_LEVEL"]="2"
 currentDir=os.getcwd()
 modDir=os.path.join(currentDir,"siamese20231031v1")
+ckptDir=os.path.join(modDir,"ckpt")
 
 with open("faceVerFileNames2.pkl","rb") as f:
         nameFileNames,uNameFileNames=pickle.load(f)
@@ -22,14 +23,17 @@ lengthU=len(uNameFileNames)
 k=6
 try:
     with open("faceVerhisTr.pkl","rb")as f:
-        history=pickle.load(f)
-        _init=len(history)//k
+        histories=pickle.load(f)
+        _init=len(histories)//k
 except Exception:
-    history,_init=[],0
+    histories,_init=[],0
+
+try:
+    siamese_model.load_weight(ckptDir)
+except Exception:pass
 
 #NOTE extra pitstops: every few hundreds of iterations, save and load model
-#NOTE extra pitstops: every few hundred iterations, save and load model
-generator=((j,(u,a,p,n)) for j,(u,a,p,n) in enumerate(zip(uNameFileNames,anc,pos,neg)) if j>=500)#NOTE pitstop1 for when we pause and restart
+generator=((j,(u,a,p,n)) for j,(u,a,p,n) in enumerate(zip(uNameFileNames,anc,pos,neg)) if j>=_init)#NOTE pitstop1 for when we pause and restart
 pitstops=list(filter(
     lambda ps: ps%500==0,list(range(lengthU))
 ))[1:]#exclude j==0
@@ -60,12 +64,13 @@ for j,(u,a,p,n) in generator:
         for batchT,batchV in zip(dTr,dVal):
             Xt,yt=batchT[:2],batchT[2]
             Xv,yv=batchV[:2],batchV[2]
-            history.append(
+            histories.append(
                 siamese_model.fit(
-                    Xt,yt,epochs=50,validation_data=(Xv,yv),
+                    Xt,yt,epochs=2,validation_data=(Xv,yv),
                     callbacks=[
                         TensorBoard("/tmp/tb_logs"),
-                        EarlyStopping("val_loss",10)
+                        EarlyStopping("val_loss",10),
+                        ModelCheckpoint(ckptDir)
                     ]
                 )
             )
@@ -74,5 +79,6 @@ save_model(siamese_model,os.path.join(currentDir,"siamese20231031v1"))
 
 try:
     with open("faceVerhisTr.pkl","wb")as f:
-        pickle.dump(history,f)
+        pickle.dump(histories,f)
 except Exception: pass
+
