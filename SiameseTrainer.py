@@ -20,7 +20,14 @@ with open("faceVerAPN0.pkl","rb")as f:
 
 lengthU=len(uNameFileNames)
 k=6
-sensDis,precDis,sensValDis,precValDis,history=[],[],[],[],[]
+try:
+    with open("faceVerhisTr.pkl","rb")as f:
+        history=pickle.load(f)
+        _init=len(history)//k
+except Exception:
+    history,_init=[],0
+
+#NOTE extra pitstops: every few hundreds of iterations, save and load model
 #NOTE extra pitstops: every few hundred iterations, save and load model
 generator=((j,(u,a,p,n)) for j,(u,a,p,n) in enumerate(zip(uNameFileNames,anc,pos,neg)) if j>=500)#NOTE pitstop1 for when we pause and restart
 pitstops=list(filter(
