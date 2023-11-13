@@ -50,7 +50,11 @@ with open(os.path.join(currentDir,"faceVerTsFileNames.pkl"),"rb") as f:
 # experiment 1: randomly choose 500 images, one from each person
 # compare them with themselves respectively
 # test for false negative
-dummyLz=[rand.choice(lz) for lz in rand.sample(nameGroupFileNames,k=SAMPLE_SIZE)]
+if len(nameGroupFileNames)>=SAMPLE_SIZE:
+    dummyLz=[rand.choice(lz) for lz in rand.sample(nameGroupFileNames,k=SAMPLE_SIZE)]
+else:
+    dummyLz=[rand.choice(lz) for lz in rand.choices(nameGroupFileNames,k=SAMPLE_SIZE)]
+
 falseNeg=np.mean(
     np.array(
         [siamese_model.predict(
