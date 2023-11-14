@@ -1,5 +1,5 @@
 from SiameseModel import *
-import os, pickle, logging, re
+import os, pickle, logging
 logging.getLogger("tensorflow").setLevel(logging.WARNING)
 import tensorflow as tf
 import random as rand
@@ -8,8 +8,8 @@ from tensorflow.keras.saving import *
 from tensorflow.data.experimental import *
 os.environ["TF_CPP_MIN_LOG_LEVEL"]="2"
 currentDir=os.getcwd()
-modDir=os.path.join(currentDir,"siamese20231031v1")
-ckptDir="weights.best.hdf5"
+modDir=os.path.join(currentDir,"siamese20231031v2")
+ckptDir=os.path.join(modDir,"ckpt.ckpt")
 
 with open("faceVerFileNames2.pkl","rb") as f:
         nameFileNames,uNameFileNames=pickle.load(f)
@@ -30,10 +30,11 @@ except Exception:
     histories,_init=[],0
 
 try:
-    if "hdf5"in ckptDir:
-        siamese_model.load_model(ckptDir)
-    else:
+    siamese_model=tf.keras.models.load_model(modDir)
+    try:
         siamese_model.load_weights(ckptDir)
+    except Exception as e:
+        print(e)
 except Exception as e:
     print(e)
 
@@ -42,32 +43,32 @@ generator=((j,(u,a,p,n)) for j,(u,a,p,n) in enumerate(zip(uNameFileNames,anc,pos
 pitstops=list(filter(
     lambda ps: ps%500==0,list(range(lengthU))
 ))[1:]#exclude j==0
+def id2dat(a,p,n,_id):
+    _length=len(_id)
+    anchor,positive,negative=tf.data.Dataset.list_files([a[j]for j in _id]).map(preprocess,AUTOTUNE),\
+        tf.data.Dataset.list_files([p[j]for j in _id]).map(preprocess,AUTOTUNE),\
+        tf.data.Dataset.list_files([n[j]for j in _id]).map(preprocess,AUTOTUNE)
+    positives=tf.data.Dataset.zip((anchor,positive,tf.data.Dataset.from_tensor_slices(tf.ones(_length))))#zip tuple: cacheDataset x3
+    negatives=tf.data.Dataset.zip((anchor,negative,tf.data.Dataset.from_tensor_slices(tf.zeros(_length))))
+    dat=positives.concatenate(negatives)
+    _lenDat=len(dat)#NOTE len of dat= len(positives)+len(negatives)
+    return dat.take(_lenDat).batch(16).prefetch(8).cache()
 
 for j,(u,a,p,n) in generator:
     print("starting {}/{};\nPerson's name: {};\nspan(anchor_person): {}".
             format(j+1,lengthU,u,len(nameGroupFileNames[j])))
     if j in pitstops:
         save_model(siamese_model,modDir)
-        siamese_model=load_model(modDir)
-    def id2dat(_id):
-        _length=len(_id)
-        anchor,positive,negative=tf.data.Dataset.list_files([a[j]for j in _id]),tf.data.Dataset.list_files([p[j]for j in _id]),\
-            tf.data.Dataset.list_files([n[j]for j in _id])
-        positives=tf.data.Dataset.zip((anchor,positive,tf.data.Dataset.from_tensor_slices(tf.ones(_length))))
-        negatives=tf.data.Dataset.zip((anchor,negative,tf.data.Dataset.from_tensor_slices(tf.zeros(_length))))
-        dat=positives.concatenate(negatives)
-        return dat.map(preprocess_twin,AUTOTUNE).take(_length).batch(16).prefetch(8).cache()
-     
-    lengthA=len(a)
+        siamese_model=load_model(modDir)     
+    lengthA=min(len(a),len(p),len(n))
     idLz=list(range(lengthA))
     rand.shuffle(idLz)
     idZSubLz=[idLz[j::k] for j in range(k)]
-    
     for jFold,idSubLz in enumerate(idZSubLz):
         print("starting fold# {}/{}".format(jFold+1,k))
         idVal,idTrain=idSubLz,list(set(idLz).difference(idSubLz))
-        dTr,dVal=id2dat(idTrain),id2dat(idVal)
-        for batchT,batchV in zip(dTr,dVal):
+        dTr,dVal=id2dat(a,p,n,idTrain),id2dat(a,p,n,idVal)
+        for batchT,batchV in zip(dTr,dVal):#cacheDs to eager tensor
             Xt,yt=batchT[:2],batchT[2]
             Xv,yv=batchV[:2],batchV[2]
             histories.append(
@@ -75,15 +76,16 @@ for j,(u,a,p,n) in generator:
                     Xt,yt,epochs=2,validation_data=(Xv,yv),
                     callbacks=[
                         TensorBoard("/tmp/tb_logs"),
-                        EarlyStopping("val_loss",10),
-                        ModelCheckpoint(ckptDir,"val_loss",0,True)
+                        EarlyStopping("val_auc",10),
+                        ModelCheckpoint(ckptDir,"val_auc",0,True)
                     ]
                 )
             )
 
-save_model(siamese_model,os.path.join(currentDir,"siamese20231031v1"))
+save_model(siamese_model,os.path.join(currentDir,"siamese20231031v2"))
 
 try:
     with open("faceVerhisTr.pkl","wb")as f:
         pickle.dump(histories,f)
 except Exception: pass
+
