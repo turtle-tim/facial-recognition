@@ -41,6 +41,7 @@ classifier=Dense(1,activation="sigmoid",input_shape=inputShape)(
 )
 siamese_model=Model(inputs=[inp,val],outputs=[classifier],name="SiameseArchitecture")
 siamese_model.compile(
-    tf.keras.optimizers.experimental.SGD(),
+    tf.keras.optimizers.experimental.SGD(.1),
     tf.keras.losses.BinaryCrossentropy(),
-    metrics=["accuracy"])
+    metrics=["accuracy",tf.keras.metrics.AUC()]
+    )
