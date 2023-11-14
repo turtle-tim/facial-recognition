@@ -1,45 +1,48 @@
 from SiameseModel import *
-from SiameseTrainer import *
 from tensorflow.keras.saving import *
+import tensorflow as tf
 import pickle, os, re, uuid, shutil, math
 import random as rand
 import numpy as np
-
+siamese_model=load_model("siamese20231031v2")
 with open("faceVerFileNames3.pkl","rb") as f:
     nameGroupFileNames=pickle.load(f)
 
 currentDir=os.getcwd()   
-siamese_model=load_model(os.path.join(currentDir,"siamese20231031v1"))
+siamese_model=load_model(os.path.join(currentDir,"siamese20231031v2"))
 SIGNIFICANCE=.05
 CONFIDENCE=1-SIGNIFICANCE
 SAMPLE_SIZE=500
 # folder wrangling
 #NOTE unzip your folder
 tDir=os.path.join(currentDir,"testerSiamese")
-os.makedirs(tDir)
-#clean up folder
-dDir=os.path.join(currentDir,
-"Downloads\\Selfies ID Images dataset 2023 TrainingData\\Selfies ID Images dataset")
-subDir,subsubDir=os.listdir(dDir),[]
-for sb in os.listdir(dDir):
-    sb1=os.path.join(dDir,sb)
-    for ssb in os.listdir(sb1):
-        subsubDir.append(os.path.join(sb1,ssb))
-
-nameGroupFileNames,uNameFileNames=[],[]
-for ssb in subsubDir:
-    gTemp=[]
-    uNameFileNames.append(re.split("[:\\\\A-Za-z0-9\-]*_(.*)",
-                                   os.path.split(ssb)[1])[1])
-    for fn in os.listdir(ssb):
-        newPath=os.path.join(tDir,
-                    "{}.{}".
-                    format(uuid.uuid4(),re.split("\.(\w+$)",fn)[1]))
-        shutil.copy2(os.path.join(ssb,fn),newPath)
-        gTemp.append(newPath)
-    nameGroupFileNames.append(gTemp)
-
 try:
+    os.makedirs(tDir)
+except Exception as e:print(e)
+
+#clean up folder
+try:
+    dDir=os.path.join(currentDir,
+    "Downloads\\Selfies ID Images dataset 2023 TrainingData\\Selfies ID Images dataset")
+    subDir,subsubDir=os.listdir(dDir),[]
+    for sb in os.listdir(dDir):
+        sb1=os.path.join(dDir,sb)
+        for ssb in os.listdir(sb1):
+            subsubDir.append(os.path.join(sb1,ssb))
+
+    nameGroupFileNames,uNameFileNames=[],[]
+    for ssb in subsubDir:
+        gTemp=[]
+        uNameFileNames.append(re.split("[:\\\\A-Za-z0-9\-]*_(.*)",
+                                    os.path.split(ssb)[1])[1])
+        for fn in os.listdir(ssb):
+            newPath=os.path.join(tDir,
+                        "{}.{}".
+                        format(uuid.uuid4(),re.split("\.(\w+$)",fn)[1]))
+            shutil.copy2(os.path.join(ssb,fn),newPath)
+            gTemp.append(newPath)
+        nameGroupFileNames.append(gTemp)
+
     with open("faceVerTsFileNames.pkl","wb") as f:
         pickle.dump((nameGroupFileNames,uNameFileNames),f)#NOTE pitstop0
 except Exception:pass
@@ -91,22 +94,42 @@ falsePos=np.mean(
 print("false positive rate when comparing a person's image not in lfw with ones in lfw: {}".format(falsePos))
 # experiment 3: using the images in testerSiamese, record testing accuracy
 # for any instance of inaccuracy, repeat the training algorithm with the testing dataset
-anc,pos,neg=[],[],[]
-lenMinGp=min(len(gp)for gp in nameGroupFileNames)
-lengthN,numComb=list(range(lenMinGp)),math.comb(lenMinGp,lenMinGp//2)
-idJackKnife=[[id for id in lengthN if id!=j]
-             for j,_ in enumerate(nameGroupFileNames)]
-for iD,uName in enumerate(nameGroupFileNames):
-    lengthU=len(uName)//2
-    for _ in range(numComb):#NOTE len(uName)=12c6->6360c3180
-        stratSam=rand.sample(uName,lengthU)
-        anc.append(stratSam)
-        pos.append([un for un in uName if un not in stratSam])
-        neg.append([rand.choice(nameGroupFileNames[idNeg]) 
-                    for idNeg in rand.choices(idJackKnife[iD],k=lengthU)])
+def apnV():
+    anc,pos,neg=[],[],[]
+    lenMinGp=min(len(gp)for gp in nameGroupFileNames)
+    lengthN,numComb=list(range(lenMinGp)),math.comb(lenMinGp,lenMinGp//2)
+    idJackKnife=[[id for id in lengthN if id!=j]
+                for j,_ in enumerate(nameGroupFileNames)]
+    for iD,uName in enumerate(nameGroupFileNames):
+        lengthU=len(uName)//2
+        for _ in range(numComb):#NOTE len(uName)=12c6->6360c3180
+            stratSam=rand.sample(uName,lengthU)
+            anc.append(stratSam)
+            pos.append([un for un in uName if un not in stratSam])
+            neg.append([rand.choice(nameGroupFileNames[idNeg]) 
+                        for idNeg in rand.choices(idJackKnife[iD],k=lengthU)])
+    return (anc,pos,neg)
+
+try:
+    with open("faceVerAPNV.pkl","wb") as f:
+        pickle.dump(apnV(),f)
+except Exception:
+    with open("faceVerAPNV.pkl","rb")as f:
+        anc,pos,neg=pickle.load(f)
+
 lengthU=len(nameGroupFileNames)
 k=6
-sensDis,precDis,sensValDis,precValDis,history=[],[],[],[],[]
+history=[]
+def id2dat(a,p,n,_id):
+    _length=len(_id)
+    anchor,positive,negative=tf.data.Dataset.list_files([a[j]for j in _id]),tf.data.Dataset.list_files([p[j]for j in _id]),\
+        tf.data.Dataset.list_files([n[j]for j in _id])
+    positives=tf.data.Dataset.zip((anchor,positive,tf.data.Dataset.from_tensor_slices(tf.ones(_length))))#zip tuple: cacheDataset x3
+    negatives=tf.data.Dataset.zip((anchor,negative,tf.data.Dataset.from_tensor_slices(tf.zeros(_length))))
+    dat=positives.concatenate(negatives)
+    _lenDat=len(dat)#NOTE len of dat= len(positives)+len(negatives)
+    return dat.map(preprocess_twin,AUTOTUNE).take(_lenDat).batch(16).prefetch(8).cache()
+
 for j,(u,a,p,n) in enumerate(zip(uNameFileNames,anc,pos,neg)):
     print("starting {}/{};\nPerson's name: {};\nspan(anchor_person): {}".
             format(j+1,lengthU,u,len(nameGroupFileNames[j])))
@@ -126,16 +149,7 @@ for j,(u,a,p,n) in enumerate(zip(uNameFileNames,anc,pos,neg)):
             ),-1
     )==1
         for aTemp,nTemp in zip(a,n)]
-    print("rate of <false negative,false positive>: <{},{}>".format(np.mean(predPos),np.mean(predNeg)))
-    def id2dat(_id):
-        _length=len(_id)
-        anchor,positive,negative=tf.data.Dataset.list_files([a[j]for j in _id]),tf.data.Dataset.list_files([p[j]for j in _id]),\
-            tf.data.Dataset.list_files([n[j]for j in _id])
-        positives=tf.data.Dataset.zip((anchor,positive,tf.data.Dataset.from_tensor_slices(tf.ones(_length))))
-        negatives=tf.data.Dataset.zip((anchor,negative,tf.data.Dataset.from_tensor_slices(tf.zeros(_length))))
-        dat=positives.concatenate(negatives)
-        return dat.map(preprocess_twin).take(_length).batch(16).prefetch(8).cache()
-     
+    print("rate of <false negative,false positive>: <{},{}>".format(np.mean(predPos),np.mean(predNeg)))     
     lengthA=len(a)
     idLz=[_id for _id,t in enumerate(np.logical_or(predPos,predNeg)) if t]
     rand.shuffle(idLz)
@@ -144,7 +158,7 @@ for j,(u,a,p,n) in enumerate(zip(uNameFileNames,anc,pos,neg)):
     for jFold,idSubLz in enumerate(idZSubLz):
         print("starting fold# {}/{}".format(jFold+1,k))
         idVal,idTrain=idSubLz,list(set(idLz).difference(idSubLz))
-        dTr,dVal=id2dat(idTrain),id2dat(idVal)
+        dTr,dVal=id2dat(a,p,n,idTrain),id2dat(a,p,n,idVal)
         for batchT,batchV in zip(dTr,dVal):
             Xt,yt=batchT[:2],batchT[2]
             Xv,yv=batchV[:2],batchV[2]
@@ -158,10 +172,10 @@ for j,(u,a,p,n) in enumerate(zip(uNameFileNames,anc,pos,neg)):
                     ]
                 )
             )
-        siamese_model.save("siamese20230925v01.h5")
-        siamese_model=load_model("siamese20230925v01.h5")
+        siamese_model.save_model("siamese20230925v02Val.h5")
+        siamese_model=load_model("siamese20230925v02Val.h5")
 
 try:
-    with open("faceVerhisTs.pkl","wb")as f:
+    with open("faceVerhisVl.pkl","wb")as f:
         pickle.dump(history,f)
 except Exception: pass
