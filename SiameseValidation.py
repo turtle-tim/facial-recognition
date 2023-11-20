@@ -16,9 +16,8 @@ SAMPLE_SIZE=500
 # folder wrangling
 #NOTE unzip your folder
 tDir=os.path.join(currentDir,"testerSiamese")
-try:
+if not os.path.exists(tDir):
     os.makedirs(tDir)
-except Exception as e:print(e)
 
 #clean up folder
 try:
@@ -119,18 +118,29 @@ except Exception:
 
 lengthU=len(nameGroupFileNames)
 k=6
-history=[]
+try:
+    with open("faceVerhisTr.pkl","rb")as f:
+        histories=pickle.load(f)
+        _init=len(histories)//k
+except Exception:
+    histories,_init=[],0
+
 def id2dat(a,p,n,_id):
     _length=len(_id)
-    anchor,positive,negative=tf.data.Dataset.list_files([a[j]for j in _id]),tf.data.Dataset.list_files([p[j]for j in _id]),\
-        tf.data.Dataset.list_files([n[j]for j in _id])
+    anchor,positive,negative=tf.data.Dataset.list_files([a[j]for j in _id]).map(preprocess,AUTOTUNE),\
+        tf.data.Dataset.list_files([p[j]for j in _id]).map(preprocess,AUTOTUNE),\
+        tf.data.Dataset.list_files([n[j]for j in _id]).map(preprocess,AUTOTUNE)
     positives=tf.data.Dataset.zip((anchor,positive,tf.data.Dataset.from_tensor_slices(tf.ones(_length))))#zip tuple: cacheDataset x3
     negatives=tf.data.Dataset.zip((anchor,negative,tf.data.Dataset.from_tensor_slices(tf.zeros(_length))))
-    dat=positives.concatenate(negatives)
+    dat=positives.concatenate(negatives) if rand.getrandbits(1) else negatives.concatenate(positives)
     _lenDat=len(dat)#NOTE len of dat= len(positives)+len(negatives)
-    return dat.map(preprocess_twin,AUTOTUNE).take(_lenDat).batch(16).prefetch(8).cache()
+    return dat.shuffle(_length*2).take(_lenDat).cache().batch(16).prefetch(8)
 
-for j,(u,a,p,n) in enumerate(zip(uNameFileNames,anc,pos,neg)):
+generator=((j,(u,a,p,n)) for j,(u,a,p,n) in enumerate(zip(uNameFileNames,anc,pos,neg)) if j>=_init)#NOTE pitstop1 for when we pause and restart
+pitstops=list(filter(
+    lambda ps: ps%500==0,list(range(lengthU))
+))[1:]#exclude j==0
+for j,(u,a,p,n) in generator:
     print("starting {}/{};\nPerson's name: {};\nspan(anchor_person): {}".
             format(j+1,lengthU,u,len(nameGroupFileNames[j])))
     predPos=[np.argmax(
