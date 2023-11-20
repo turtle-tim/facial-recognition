@@ -1,4 +1,4 @@
-import os, cv2, uuid, re, pickle, logging
+import os, cv2, uuid, re, pickle, math, itertools
 import random as rand
 from tensorflow.image import stateless_random_brightness,stateless_random_contrast,\
     stateless_random_flip_left_right,stateless_random_flip_up_down,\
@@ -6,7 +6,8 @@ from tensorflow.image import stateless_random_brightness,stateless_random_contra
         stateless_random_saturation,stateless_random_hue
 
 currentDir=os.getcwd();dDir=os.path.join(currentDir,"dataSiamese")
-os.makedirs(dDir)
+if not os.path.exists(dDir):
+    os.makedirs(dDir)
 '''
 NOTE 1: download lfw from https://vis-www.cs.umass.edu/lfw/
 NOTE 2: in Command Prompt, run: tar -xf lfw.tgz
@@ -97,7 +98,7 @@ except Exception:pass
 
 with open("faceVerFileNames2.pkl","rb") as f:
         nameFileNames,uNameFileNames=pickle.load(f)
-        
+
 try:
     with open("faceVerFileNames3.pkl","wb") as f:#NOTE pitstop3
         pickle.dump(
@@ -110,19 +111,25 @@ with open("faceVerFileNames3.pkl","rb") as f:
     nameGroupFileNames=pickle.load(f)
     
 #stratified bootstrap
+lenMinGp=min(len(ng)for ng in nameGroupFileNames)
+numComb=math.comb(lenMinGp,lenMinGp//2)
 def apn():
     anc,pos,neg=[],[],[]
     lengthN=list(range(len(nameGroupFileNames)))
     idJackKnife=[[id for id in lengthN if id!=j]
              for j,_ in enumerate(nameGroupFileNames)]
-    for iD,uName in enumerate(nameGroupFileNames):
-        lengthU=len(uName)//2
-        for _ in range(924):#NOTE len(uName)=12c6->6360c3180
-            stratSam=rand.sample(uName,lengthU)
-            anc.append(stratSam)
-            pos.append([un for un in uName if un not in stratSam])
-            neg.append([rand.choice(nameGroupFileNames[idNeg]) 
+    for iD,nameGroup in enumerate(nameGroupFileNames):
+        lengthU=len(nameGroup)//2
+        ancTemp,posTemp,negTemp=[],[],[]
+        for _ in range(numComb):#NOTE len(nameGroup)=12c6->6360c3180
+            stratSam=rand.sample(nameGroup,lengthU)
+            ancTemp.append(stratSam)
+            posTemp.append([un for un in nameGroup if un not in stratSam])
+            negTemp.append([rand.choice(nameGroupFileNames[idNeg]) 
                     for idNeg in rand.choices(idJackKnife[iD],k=lengthU)])
+        anc.append(list(itertools.chain.from_iterable(ancTemp)))
+        pos.append(list(itertools.chain.from_iterable(posTemp)))
+        neg.append(list(itertools.chain.from_iterable(negTemp)))
     return (anc,pos,neg)
 
 try:
